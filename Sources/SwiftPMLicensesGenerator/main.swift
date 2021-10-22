@@ -25,8 +25,8 @@ dependecies added via SwiftPM
         return FileManager.default
     }
 
-//    @Argument(help: "Path to where the output JSON file should be written to")
-//    var outputFile: String
+    //    @Argument(help: "Path to where the output JSON file should be written to")
+    //    var outputFile: String
 
     mutating func run() throws {
         let reposDirURL = computeReposDirURL(from: buildDir)
@@ -56,20 +56,20 @@ dependecies added via SwiftPM
 
         let repoLicenses: [String: String] = try repos.reduce(into: [:]) { dict, repo in
             let repoURL = reposDirURL.appendingPathComponent(repo)
-            let repoFiles = try fileManager.contentsOfDirectory(
-                at: repoURL,
-                includingPropertiesForKeys: nil,
-                options: []
+            let repoFiles = try fileManager.contentsOfDirectory(at: repoURL,
+                                                                includingPropertiesForKeys: nil,
+                                                                options: []
             )
 
-            if let licenseURL = repoFiles.first(where: { fileURL in
+            let licenseURL = repoFiles.first { fileURL in
                 let fileName = fileURL.lastPathComponent.lowercased()
                 return fileName.contains("license") && fileURL.isFileURL
-            }) {
-                if let licenseData = fileManager.contents(atPath: licenseURL.path) {
+            }
+
+            if  let licenseURL = licenseURL,
+                let licenseData = fileManager.contents(atPath: licenseURL.path) {
                     let license = String(decoding: licenseData, as: UTF8.self)
                     dict[repo] = license
-                }
             }
         }
 
