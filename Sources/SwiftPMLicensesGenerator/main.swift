@@ -53,10 +53,7 @@ dependecies added via SwiftPM
             return result
         }
 
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .prettyPrinted
-        let jsonData = try encoder.encode(dependencyLicenses)
-        try jsonData.write(to: outputFile)
+        try dependencyLicenses.writeAsJSON(toFile: outputFile)
     }
 
     private func computeReposDirURL(from buildDir: String) -> URL {
