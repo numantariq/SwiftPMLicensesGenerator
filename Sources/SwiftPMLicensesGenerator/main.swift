@@ -15,11 +15,8 @@ dependecies added via SwiftPM
     @Argument(help: "Path to derived data. $BUILD_DIR from Xcode run script")
     var buildDir: String
 
-    @Option(name: .shortAndLong, help: "Path to .xcodeproj")
-    var projectPath: String?
-
-    @Option(name: .shortAndLong, help: "Path to .xcworkspace")
-    var workspacePath: String?
+    @Argument(help: "Path to Package.resolved")
+    var resolvedPackage: String
 
     private var fileManager: FileManager {
         return FileManager.default
@@ -30,7 +27,30 @@ dependecies added via SwiftPM
 
     mutating func run() throws {
         let reposDirURL = computeReposDirURL(from: buildDir)
-        let repoLicenses = try loadLicensesFromRepos(reposDirURL)
+        let licensesInfo = try loadLicensesFromRepos(reposDirURL)
+
+        let depenedencies = try loadDependencies(from: resolvedPackage)
+
+        let dependencyLicenses: [Dependency] = depenedencies.map { dependency in
+            guard let dependencyURL = URL(string: dependency.url) else {
+                print("Unable to create URL instance")
+                return dependency
+            }
+
+            var result = dependency
+
+            let repoNameFromURL = dependencyURL
+                .lastPathComponent
+                .replacingOccurrences(of: ".git", with: "")
+            
+            if let matchingLicense = licensesInfo[repoNameFromURL] {
+                result.license = matchingLicense
+            }
+
+            return result
+        }
+
+        print(dependencyLicenses)
     }
 
     private func computeReposDirURL(from buildDir: String) -> URL {
@@ -74,6 +94,29 @@ dependecies added via SwiftPM
         }
 
         return repoLicenses
+    }
+
+    private func loadDependencies(from resolvedPackage: String) throws -> [Dependency] {
+        let packageContent = try loadResolvedPackageContent(resolvedPackage)
+        return packageContent?.object.pins.map({ pin in
+            return Dependency(name: pin.package,
+                              url: pin.repositoryURL,
+                              version: pin.state.version,
+                              license: nil)
+        }) ?? []
+    }
+
+    private func loadResolvedPackageContent(_ resolvedPackage: String) throws -> ResolvedPackageModel? {
+        let resolvedPackageURL = URL(fileURLWithPath: resolvedPackage)
+
+        guard
+            let resolvedPackageData = fileManager.contents(atPath: resolvedPackageURL.path)
+        else {
+            return nil
+        }
+
+        return try JSONDecoder().decode(ResolvedPackageModel.self,
+                                                              from: resolvedPackageData)
     }
 }
 
