@@ -12,11 +12,17 @@ dependecies added via SwiftPM
 """
     )
 
-    @Argument(help: "Path to derived data. $BUILD_DIR from Xcode run script")
-    var buildDir: String
+    @Argument(
+        help: "Path to derived data. $BUILD_DIR from Xcode run script",
+        transform: ({ return URL(fileURLWithPath: $0)})
+    )
+    var buildDir: URL
 
-    @Argument(help: "Path to Package.resolved")
-    var resolvedPackage: String
+    @Argument(
+        help: "Path to Package.resolved",
+        transform: ({ return URL(fileURLWithPath: $0)})
+    )
+    var resolvedPackage: URL
 
     @Argument(
         help: "Path to where the output JSON file should be written to",
@@ -28,32 +34,29 @@ dependecies added via SwiftPM
         return FileManager.default
     }
 
+    private var derivedDataURL: URL {
+        // Go from: {DerivedData}/{AppFolder}/Build/Product
+        // To: {DerivedData}/{AppFolder}
+        return buildDir
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+
+    private var reposDirURL: URL {
+        // Go from: {DerivedData}/{AppFolder}
+        // To: {DerivedData}/{AppFolder}/SourcePackages/checkouts
+        return derivedDataURL
+            .appendingPathComponent("SourcePackages")
+            .appendingPathComponent("checkouts")
+    }
+
     mutating func run() throws {
-        let reposDirURL = computeReposDirURL(from: buildDir)
         let licensesInfo = try loadLicensesFromRepos(reposDirURL)
 
         var depenedencies = try loadDependencies(from: resolvedPackage)
         depenedencies.updateWith(licensesInfo)
 
         try depenedencies.writeAsJSON(toFile: outputFile)
-    }
-
-    private func computeReposDirURL(from buildDir: String) -> URL {
-        let buildDirPath = URL(fileURLWithPath: buildDir)
-
-        // Go from: {DerivedData}/{AppFolder}/Build/Product
-        // To: {DerivedData}/{AppFolder}
-        let derivedDataURL = buildDirPath
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-
-        // Go from: {DerivedData}/{AppFolder}
-        // To: {DerivedData}/{AppFolder}/SourcePackages/checkouts
-        let repoDirURL = derivedDataURL
-            .appendingPathComponent("SourcePackages")
-            .appendingPathComponent("checkouts")
-
-        return repoDirURL
     }
 
     private func loadLicensesFromRepos(_ reposDirURL: URL) throws -> [String: String] {
@@ -81,8 +84,8 @@ dependecies added via SwiftPM
         return repoLicenses
     }
 
-    private func loadDependencies(from resolvedPackage: String) throws -> [Dependency] {
-        let packageContent = try loadResolvedPackageContent(resolvedPackage)
+    private func loadDependencies(from resolvedPackageURL: URL) throws -> [Dependency] {
+        let packageContent = try loadResolvedPackageContent(resolvedPackageURL)
         return packageContent?.object.pins.map({ pin in
             return Dependency(name: pin.package,
                               url: pin.repositoryURL,
@@ -91,9 +94,7 @@ dependecies added via SwiftPM
         }) ?? []
     }
 
-    private func loadResolvedPackageContent(_ resolvedPackage: String) throws -> ResolvedPackageModel? {
-        let resolvedPackageURL = URL(fileURLWithPath: resolvedPackage)
-
+    private func loadResolvedPackageContent(_ resolvedPackageURL: URL) throws -> ResolvedPackageModel? {
         guard
             let resolvedPackageData = fileManager.contents(atPath: resolvedPackageURL.path)
         else {
