@@ -18,12 +18,15 @@ dependecies added via SwiftPM
     @Argument(help: "Path to Package.resolved")
     var resolvedPackage: String
 
+    @Argument(
+        help: "Path to where the output JSON file should be written to",
+        transform: ({ return URL(fileURLWithPath: $0)})
+    )
+    var outputFile: URL
+
     private var fileManager: FileManager {
         return FileManager.default
     }
-
-    //    @Argument(help: "Path to where the output JSON file should be written to")
-    //    var outputFile: String
 
     mutating func run() throws {
         let reposDirURL = computeReposDirURL(from: buildDir)
@@ -42,7 +45,7 @@ dependecies added via SwiftPM
             let repoNameFromURL = dependencyURL
                 .lastPathComponent
                 .replacingOccurrences(of: ".git", with: "")
-            
+
             if let matchingLicense = licensesInfo[repoNameFromURL] {
                 result.license = matchingLicense
             }
@@ -50,7 +53,10 @@ dependecies added via SwiftPM
             return result
         }
 
-        print(dependencyLicenses)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        let jsonData = try encoder.encode(dependencyLicenses)
+        try jsonData.write(to: outputFile)
     }
 
     private func computeReposDirURL(from buildDir: String) -> URL {

@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct  Dependency: Encodable {
+struct  Dependency: Codable {
     var name: String
     var url: String
     var version: String?
