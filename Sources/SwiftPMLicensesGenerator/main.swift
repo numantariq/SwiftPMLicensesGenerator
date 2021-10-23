@@ -85,24 +85,13 @@ dependecies added via SwiftPM
     }
 
     private func loadDependencies(from resolvedPackageURL: URL) throws -> [Dependency] {
-        let packageContent = try loadResolvedPackageContent(resolvedPackageURL)
+        let packageContent = try ResolvedPackageModel.loadResolvedPackageContent(resolvedPackageURL)
         return packageContent?.object.pins.map({ pin in
             return Dependency(name: pin.package,
                               url: pin.repositoryURL,
                               version: pin.state.version,
                               license: nil)
         }) ?? []
-    }
-
-    private func loadResolvedPackageContent(_ resolvedPackageURL: URL) throws -> ResolvedPackageModel? {
-        guard
-            let resolvedPackageData = fileManager.contents(atPath: resolvedPackageURL.path)
-        else {
-            return nil
-        }
-
-        return try JSONDecoder().decode(ResolvedPackageModel.self,
-                                                              from: resolvedPackageData)
     }
 }
 

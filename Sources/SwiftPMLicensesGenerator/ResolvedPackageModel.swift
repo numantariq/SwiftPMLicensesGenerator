@@ -25,5 +25,16 @@ struct ResolvedPackageModel: Decodable {
     }
 
     let object: Object
+
+    static func loadResolvedPackageContent(_ resolvedPackageURL: URL) throws -> ResolvedPackageModel? {
+        guard
+            let resolvedPackageData = FileManager.default.contents(atPath: resolvedPackageURL.path)
+        else {
+            return nil
+        }
+
+        return try JSONDecoder().decode(ResolvedPackageModel.self,
+                                                              from: resolvedPackageData)
+    }
 }
 
