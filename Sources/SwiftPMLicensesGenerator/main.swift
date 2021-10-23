@@ -32,28 +32,10 @@ dependecies added via SwiftPM
         let reposDirURL = computeReposDirURL(from: buildDir)
         let licensesInfo = try loadLicensesFromRepos(reposDirURL)
 
-        let depenedencies = try loadDependencies(from: resolvedPackage)
+        var depenedencies = try loadDependencies(from: resolvedPackage)
+        depenedencies.updateWith(licensesInfo)
 
-        let dependencyLicenses: [Dependency] = depenedencies.map { dependency in
-            guard let dependencyURL = URL(string: dependency.url) else {
-                print("Unable to create URL instance")
-                return dependency
-            }
-
-            var result = dependency
-
-            let repoNameFromURL = dependencyURL
-                .lastPathComponent
-                .replacingOccurrences(of: ".git", with: "")
-
-            if let matchingLicense = licensesInfo[repoNameFromURL] {
-                result.license = matchingLicense
-            }
-
-            return result
-        }
-
-        try dependencyLicenses.writeAsJSON(toFile: outputFile)
+        try depenedencies.writeAsJSON(toFile: outputFile)
     }
 
     private func computeReposDirURL(from buildDir: String) -> URL {
