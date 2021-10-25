@@ -89,8 +89,7 @@ dependecies added via SwiftPM
         return packageContent?.object.pins.map({ pin in
             return Dependency(name: pin.package,
                               url: pin.repositoryURL,
-                              version: pin.state.version,
-                              license: nil)
+                              version: pin.state.version)
         }) ?? []
     }
 }
