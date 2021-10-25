@@ -64,32 +64,16 @@ dependecies added via SwiftPM
 
         let repoLicenses: [String: String] = try repos.reduce(into: [:]) { dict, repo in
             let repoURL = reposDirURL.appendingPathComponent(repo)
-            let repoFiles = try fileManager.contentsOfDirectory(at: repoURL,
-                                                                includingPropertiesForKeys: nil,
-                                                                options: []
+            let repoFiles = try fileManager.contentsOfDirectory(
+                at: repoURL,
+                includingPropertiesForKeys: nil,
+                options: []
             )
 
-            let licenseURL = repoFiles.first { fileURL in
-                let fileName = fileURL.lastPathComponent.lowercased()
-                return fileName.contains("license") && fileURL.isFileURL
-            }
+            let licenseURL = findLicenseFile(in: repoFiles)
 
             if  let licenseURL = licenseURL,
                 let licenseData = fileManager.contents(atPath: licenseURL.path) {
-                let license = String(decoding: licenseData, as: UTF8.self)
-                dict[repo] = license
-                return
-            }
-
-            // Some repos contain COPYING file with Copyright
-            // information instead. Falling back to it if license not found
-            let copyURL = repoFiles.first { fileURL in
-                let fileName = fileURL.lastPathComponent.lowercased()
-                return fileName.contains("copying") && fileURL.isFileURL
-            }
-
-            if  let copyURL = copyURL,
-                let licenseData = fileManager.contents(atPath: copyURL.path) {
                 let license = String(decoding: licenseData, as: UTF8.self)
                 dict[repo] = license
             }
@@ -107,6 +91,32 @@ dependecies added via SwiftPM
                               url: pin.repositoryURL,
                               version: state.version ?? state.branch ?? state.revision)
         }) ?? []
+    }
+
+    private func isValidLicenseFile(url: URL) -> Bool {
+        let fileExtension = url.pathExtension.lowercased()
+        return ["txt", "md", ""].contains(fileExtension)
+    }
+
+    private func findLicenseFile(in files: [URL]) -> URL? {
+        if let licenseFileURL = findURLForFile(named: "license", in: files) {
+            return licenseFileURL
+        }
+
+        // Some repos contain COPYING file with Copyright
+        // information instead. Falling back to it if license not found
+        return findURLForFile(named: "copying", in: files)
+    }
+
+    private func findURLForFile(named: String, in files: [URL]) -> URL? {
+        return files.first { fileURL in
+            let fileName = fileURL.lastPathComponent.lowercased()
+            return (
+                fileName.contains(named) &&
+                fileURL.isFileURL &&
+                isValidLicenseFile(url: fileURL)
+                )
+        }
     }
 }
 
