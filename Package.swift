@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "SwiftPMLicensesGenerator",
     products: [
-        .executable(name: "licenses-generator", targets: ["SwiftPMLicensesGenerator"])
+        .library(name: "SwiftPMLicensesGenerator", targets: ["SwiftPMLicensesGenerator"])
     ],
     dependencies: [
         .package(
