@@ -76,9 +76,24 @@ dependecies added via SwiftPM
 
             if  let licenseURL = licenseURL,
                 let licenseData = fileManager.contents(atPath: licenseURL.path) {
-                    let license = String(decoding: licenseData, as: UTF8.self)
-                    dict[repo] = license
+                let license = String(decoding: licenseData, as: UTF8.self)
+                dict[repo] = license
+                return
             }
+
+            // Some repos contain COPYING file with Copyright
+            // information instead. Falling back to it if license not found
+            let copyURL = repoFiles.first { fileURL in
+                let fileName = fileURL.lastPathComponent.lowercased()
+                return fileName.contains("copying") && fileURL.isFileURL
+            }
+
+            if  let copyURL = copyURL,
+                let licenseData = fileManager.contents(atPath: copyURL.path) {
+                let license = String(decoding: licenseData, as: UTF8.self)
+                dict[repo] = license
+            }
+
         }
 
         return repoLicenses
