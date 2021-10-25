@@ -102,9 +102,10 @@ dependecies added via SwiftPM
     private func loadDependencies(from resolvedPackageURL: URL) throws -> [Dependency] {
         let packageContent = try ResolvedPackageModel.loadResolvedPackageContent(resolvedPackageURL)
         return packageContent?.object.pins.map({ pin in
+            let state = pin.state
             return Dependency(name: pin.package,
                               url: pin.repositoryURL,
-                              version: pin.state.version)
+                              version: state.version ?? state.branch ?? state.revision)
         }) ?? []
     }
 }
