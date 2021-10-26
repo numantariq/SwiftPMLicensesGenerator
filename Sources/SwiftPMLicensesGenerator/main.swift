@@ -35,11 +35,19 @@ dependecies added via SwiftPM
     }
 
     private var derivedDataURL: URL {
-        // Go from: {DerivedData}/{AppFolder}/Build/Product
+        // Go from: {DerivedData}/{AppFolder}/Build/.....
         // To: {DerivedData}/{AppFolder}
-        return buildDir
+        let fallbackPath = buildDir
             .deletingLastPathComponent()
             .deletingLastPathComponent()
+
+        let pathComponents = buildDir.pathComponents
+        if let indexOfAppFolder = pathComponents.firstIndex(of: "Build") {
+            let pathComponentsToAppFolder = pathComponents.prefix(indexOfAppFolder).map { $0 }
+            return NSURL.fileURL(withPathComponents: pathComponentsToAppFolder) ?? fallbackPath
+        }
+
+        return fallbackPath
     }
 
     private var reposDirURL: URL {
