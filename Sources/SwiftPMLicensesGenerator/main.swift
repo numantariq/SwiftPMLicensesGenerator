@@ -1,130 +1,93 @@
 import ArgumentParser
-import ShellOut
 import Foundation
 
 struct LicencesGenerator: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "generate",
-        abstract:
-"""
-Build tool to generate a list of licenses for
-dependecies added via SwiftPM
-"""
+        abstract: "Build tool to generate a list of licenses for dependencies added via SwiftPM"
     )
 
-    @Argument(
-        help: "Path to derived data. $BUILD_DIR from Xcode run script",
-        transform: ({ return URL(fileURLWithPath: $0)})
-    )
-    var buildDir: URL
+    @Option(name: .long, help: "Project name to determine the correct DerivedData directory.")
+    var projectName: String
 
-    @Argument(
-        help: "Path to Package.resolved",
-        transform: ({ return URL(fileURLWithPath: $0)})
-    )
-    var resolvedPackage: URL
+    @Option(name: .long, help: "Path to derived data. $BUILD_DIR from Xcode run script. If not provided, uses the default DerivedData path.")
+    var buildDir: String?
 
-    @Argument(
-        help: "Path to where the output JSON file should be written to",
-        transform: ({ return URL(fileURLWithPath: $0)})
-    )
-    var outputFile: URL
+    @Option(name: .long, help: "Path to Package.resolved")
+    var resolvedPackage: String
+
+    @Option(name: .long, help: "Path to where the output JSON file should be written to")
+    var outputFile: String
+
+    mutating func run() throws {
+        let checkoutsDirURL = try findCheckoutsDirectory()
+        let licenses = try generateLicenses(from: checkoutsDirURL)
+
+        let outputURL = URL(fileURLWithPath: outputFile)
+        try writeLicenses(licenses, to: outputURL)
+
+        print("Licenses were successfully generated and saved to: \(outputURL.path)")
+    }
 
     private var fileManager: FileManager {
         return FileManager.default
     }
 
-    private var derivedDataURL: URL {
-        // Go from: {DerivedData}/{AppFolder}/Build/.....
-        // To: {DerivedData}/{AppFolder}
-        let fallbackPath = buildDir
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-
-        let pathComponents = buildDir.pathComponents
-        if let indexOfAppFolder = pathComponents.firstIndex(of: "Build") {
-            let pathComponentsToAppFolder = pathComponents.prefix(indexOfAppFolder).map { $0 }
-            return NSURL.fileURL(withPathComponents: pathComponentsToAppFolder) ?? fallbackPath
-        }
-
-        return fallbackPath
-    }
-
-    private var reposDirURL: URL {
-        // Go from: {DerivedData}/{AppFolder}
-        // To: {DerivedData}/{AppFolder}/SourcePackages/checkouts
-        return derivedDataURL
-            .appendingPathComponent("SourcePackages")
-            .appendingPathComponent("checkouts")
-    }
-
-    mutating func run() throws {
-        let licensesInfo = try loadLicensesFromRepos(reposDirURL)
-
-        var depenedencies = try loadDependencies(from: resolvedPackage)
-        depenedencies.updateWith(licensesInfo)
-
-        try depenedencies.writeAsJSON(toFile: outputFile)
-    }
-
-    private func loadLicensesFromRepos(_ reposDirURL: URL) throws -> [String: String] {
-        let repos = try fileManager.contentsOfDirectory(atPath: reposDirURL.path)
-
-        let repoLicenses: [String: String] = try repos.reduce(into: [:]) { dict, repo in
-            let repoURL = reposDirURL.appendingPathComponent(repo)
-            let repoFiles = try fileManager.contentsOfDirectory(
-                at: repoURL,
-                includingPropertiesForKeys: nil,
-                options: []
-            )
-
-            let licenseURL = findLicenseFile(in: repoFiles)
-
-            if  let licenseURL = licenseURL,
-                let licenseData = fileManager.contents(atPath: licenseURL.path) {
-                let license = String(decoding: licenseData, as: UTF8.self)
-                dict[repo] = license
+    private func findCheckoutsDirectory() throws -> URL {
+        if let buildDirPath = buildDir {
+            let customBuildDirURL = URL(fileURLWithPath: buildDirPath)
+            let checkoutsPath = customBuildDirURL.appendingPathComponent("SourcePackages/checkouts")
+            guard fileManager.fileExists(atPath: checkoutsPath.path) else {
+                throw ValidationError("The 'checkouts' folder does not exist at custom build path: \(checkoutsPath.path)")
             }
-
+            return checkoutsPath
         }
 
-        return repoLicenses
-    }
+        let derivedDataPath = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library")
+            .appendingPathComponent("Developer")
+            .appendingPathComponent("Xcode")
+            .appendingPathComponent("DerivedData")
 
-    private func loadDependencies(from resolvedPackageURL: URL) throws -> [Dependency] {
-        let packageContent = try ResolvedPackageModel.loadResolvedPackageContent(resolvedPackageURL)
-        return packageContent?.object.pins.map({ pin in
-            let state = pin.state
-            return Dependency(name: pin.package,
-                              url: pin.repositoryURL,
-                              version: state.version ?? state.branch ?? state.revision)
-        }) ?? []
-    }
-
-    private func isValidLicenseFile(url: URL) -> Bool {
-        let fileExtension = url.pathExtension.lowercased()
-        return ["txt", "md", ""].contains(fileExtension)
-    }
-
-    private func findLicenseFile(in files: [URL]) -> URL? {
-        if let licenseFileURL = findURLForFile(named: "license", in: files) {
-            return licenseFileURL
+        let directoryContents = try fileManager.contentsOfDirectory(atPath: derivedDataPath.path)
+        guard let projectDirectory = directoryContents.first(where: { $0.starts(with: projectName) }) else {
+            throw ValidationError("No DerivedData directory found for project named \(projectName).")
         }
 
-        // Some repos contain COPYING file with Copyright
-        // information instead. Falling back to it if license not found
-        return findURLForFile(named: "copying", in: files)
+        let fullProjectPath = derivedDataPath
+            .appendingPathComponent(projectDirectory)
+            .appendingPathComponent("SourcePackages/checkouts")
+
+        guard fileManager.fileExists(atPath: fullProjectPath.path) else {
+            throw ValidationError("The 'checkouts' folder does not exist at derived path: \(fullProjectPath.path)")
+        }
+
+        return fullProjectPath
     }
 
-    private func findURLForFile(named: String, in files: [URL]) -> URL? {
-        return files.first { fileURL in
-            let fileName = fileURL.lastPathComponent.lowercased()
-            return (
-                fileName.contains(named) &&
-                fileURL.isFileURL &&
-                isValidLicenseFile(url: fileURL)
-                )
+    private func generateLicenses(from directory: URL) throws -> [String: String] {
+        let repos = try fileManager.contentsOfDirectory(atPath: directory.path)
+        var licenses: [String: String] = [:]
+
+        for repo in repos {
+            let repoURL = directory.appendingPathComponent(repo)
+            let licenseFile = repoURL.appendingPathComponent("LICENSE", isDirectory: false)
+            if fileManager.fileExists(atPath: licenseFile.path),
+               let licenseData = fileManager.contents(atPath: licenseFile.path) {
+                let licenseContent = String(decoding: licenseData, as: UTF8.self)
+                licenses[repo] = licenseContent
+            } else {
+                licenses[repo] = "No license file found."
+            }
         }
+        return licenses
+    }
+
+    private func writeLicenses(_ licenses: [String: String], to url: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        let jsonData = try encoder.encode(licenses)
+        try jsonData.write(to: url)
     }
 }
 
