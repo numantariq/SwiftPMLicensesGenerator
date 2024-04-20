@@ -11,11 +11,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/apple/swift-argument-parser",
-            from: "0.3.1"
-        ),
-        .package(
-            url: "https://github.com/JohnSundell/ShellOut",
-            from: "2.3.0"
+            from: "1.3.1"
         )
     ],
     targets: [
@@ -25,7 +21,6 @@ let package = Package(
             name: "SwiftPMLicensesGenerator",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
-                .product(name: "ShellOut", package: "ShellOut")
             ]
         ),
         .testTarget(

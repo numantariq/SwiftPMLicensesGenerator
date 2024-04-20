@@ -8,33 +8,24 @@
 import Foundation
 
 struct ResolvedPackageModel: Decodable {
-    struct Object: Decodable {
-        struct Pin: Decodable {
-            struct State: Decodable {
-                let branch: String?
-                let revision: String?
-                let version: String?
-            }
-
-            let package: String
-            let repositoryURL: String
-            let state: State
+    struct Pin: Decodable {
+        struct State: Decodable {
+            let revision: String?
+            let version: String?
         }
 
-        let pins: [Pin]
+        let identity: String
+        let location: String
+        let state: State
     }
 
-    let object: Object
+    let pins: [Pin]
 
     static func loadResolvedPackageContent(_ resolvedPackageURL: URL) throws -> ResolvedPackageModel? {
-        guard
-            let resolvedPackageData = FileManager.default.contents(atPath: resolvedPackageURL.path)
-        else {
+        guard let resolvedPackageData = FileManager.default.contents(atPath: resolvedPackageURL.path) else {
             return nil
         }
 
-        return try JSONDecoder().decode(ResolvedPackageModel.self,
-                                                              from: resolvedPackageData)
+        return try JSONDecoder().decode(ResolvedPackageModel.self, from: resolvedPackageData)
     }
 }
-

@@ -6,43 +6,22 @@ Rest of the information about the dependencies is extracted from the `Package.re
 
 ## Usage Instructions
 
-### Running the License Generator
+### Running the Licences Generator
 
-To use the `LicencesGenerator`, you'll need to provide specific command-line arguments that specify the paths required for operation. The generator supports specifying a custom build directory, the path to the `Package.resolved` file, and the desired location for the output JSON file containing the license details.
+The `LicencesGenerator` is a command-line tool designed to generate a list of licenses for dependencies added via Swift Package Manager by specifying the path to an Xcode project file. The tool automatically locates the `Package.resolved` file based on the provided project file path and generates a JSON file containing the licenses information.
 
 Here’s how to run the generator from the command line:
 
-```bash
-swift run SwiftPMLicensesGenerator --project-name <ProjectName> --build-dir <PathToCustomBuildDir> --resolved-package <PathToPackage.resolved> --output-file <PathToOutputFile>
+```
+swift run SwiftPMLicensesGenerator <PathToXcodeProj>
 ```
 
 #### Parameters
---project-name <ProjectName>: Specify the project name to determine the correct DerivedData directory if --build-dir is not provided.
+- `<PathToXcodeProj>`: The path to the `.xcodeproj` file. This is used to derive the location of the `Package.resolved` file.
+- `<PathToJsonOutputFile>`: (Optional) The path where the output JSON file containing the licenses should be written. Defaults to the current directory with the filename `licenses.json`.
+- `--custom-build-path <PathToCustomBuildPath>`: (Optional) Specify a custom build directory path if not using the default DerivedData path. If provided, this path is used to locate the SourcePackages/checkouts directory.
 
---build-dir <PathToCustomBuildDir>: (Optional) Specify a custom build directory path if not using the default DerivedData path. If provided, this path is used to locate the SourcePackages/checkouts directory.
-
---resolved-package <PathToPackage.resolved>: Specify the full path to the Package.resolved file typically located inside your Xcode project workspace.
-
---output-file <PathToOutputFile>: Specify the path where the output JSON file containing the licenses should be written.
-
-## Example
-
-Assuming your project is named "ExampleProject", and you want to use the default DerivedData directory, your command might look like this:
-
-```bash
-swift run SwiftPMLicensesGenerator --project-name ExampleProject --resolved-package ExampleProject.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved --output-file licenses.json
-```
-
-If you wish to specify a custom build directory:
-
-```bash
-swift run SwiftPMLicensesGenerator --build-dir /path/to/custom/build --resolved-package ExampleProject.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved --output-file licenses.json
-```
-
-## Note
-Ensure that the paths you provide are absolute and correct according to your filesystem and project structure. The script will validate these paths and will provide an error message if any issues are found.
-
-## Output
+### Output
 
 The output JSON uses the following format:
 
@@ -58,7 +37,21 @@ The output JSON uses the following format:
 ]
 ```
 
-## Notes
+## Example usage
+
+Assuming your project is located at `ExampleProject.xcodeproj` and you prefer to save the output in the current directory:
+
+```
+swift run SwiftPMLicensesGenerator ExampleProject.xcodeproj
+```
+
+If you need to specify a custom build directory and a specific location for the output file:
+
+```
+swift run SwiftPMLicensesGenerator /path/to/ExampleProject.xcodeproj --custom-build-path /path/to/custom/build --output-json-file /path/to/output/licenses.json
+```
+
+## Note
 - Only works with Swift Package Manager dependencies
 - Developed in Swift
 - `swift-tools-version:5.3`
