@@ -8,10 +8,10 @@ struct LicencesGenerator: ParsableCommand {
     )
 
     @Argument(
-        help: "Path to the .xcodeproj file.",
+        help: "Path to the root directory of an Xcode project or Swift Package Manager project.",
         transform: { URL(fileURLWithPath: $0) }
     )
-    var xcodeProjPath: URL
+    var projectPath: URL = URL(fileURLWithPath: "./")
 
     @Option(
         help: "Path to where the output JSON file should be written to. Defaults to the current directory with 'licenses.json'.",
@@ -26,25 +26,53 @@ struct LicencesGenerator: ParsableCommand {
     var customBuildPath: URL?
 
     mutating func run() throws {
-        let projectName = xcodeProjPath.deletingPathExtension().lastPathComponent
-        let packageResolvedPath = xcodeProjPath
-            .appendingPathComponent("project.xcworkspace")
-            .appendingPathComponent("xcshareddata")
-            .appendingPathComponent("swiftpm")
-            .appendingPathComponent("Package.resolved")
+        var projectName: String
+        var packageResolvedPath: URL
+
+        if let xcodeprojPath = findXcodeprojPath(projectPath) {
+            projectName = xcodeprojPath.deletingPathExtension().lastPathComponent
+            packageResolvedPath = xcodeprojPath
+                .appendingPathComponent("project.xcworkspace")
+                .appendingPathComponent("xcshareddata")
+                .appendingPathComponent("swiftpm")
+                .appendingPathComponent("Package.resolved")
+        } else if let packageResolvedURL = findPackageResolvedPath(projectPath) {
+            projectName = projectPath.lastPathComponent
+            packageResolvedPath = packageResolvedURL
+        } else {
+            throw ValidationError("Unable to locate an Xcode project or Package.resolved file in the provided path.")
+        }
 
         let reposDirURL = try findCheckoutDir(projectName)
         let licensesInfo = try loadLicensesFromRepos(reposDirURL)
 
-        var depenedencies = try loadDependencies(from: packageResolvedPath)
-        depenedencies.updateWith(licensesInfo)
+        var dependencies = try loadDependencies(from: packageResolvedPath)
+        dependencies.updateWith(licensesInfo)
 
-        try depenedencies.writeAsJSON(toFile: outputJsonFile)
+        try dependencies.writeAsJSON(toFile: outputJsonFile)
 
         print("Licenses were successfully generated and saved to: \(outputJsonFile.path)")
     }
 
     private var fileManager: FileManager { FileManager.default }
+
+    private func findXcodeprojPath(_ projectPath: URL) -> URL? {
+        let enumerator = FileManager.default.enumerator(atPath: projectPath.path)
+        while let element = enumerator?.nextObject() as? String {
+            if element.hasSuffix(".xcodeproj") {
+                return projectPath.appendingPathComponent(element)
+            }
+        }
+        return nil
+    }
+
+    private func findPackageResolvedPath(_ projectPath: URL) -> URL? {
+        let packageResolvedURL = projectPath.appendingPathComponent("Package.resolved")
+        if FileManager.default.fileExists(atPath: packageResolvedURL.path) {
+            return packageResolvedURL
+        }
+        return nil
+    }
 
     private func findCheckoutDir(_ projectName: String) throws -> URL {
         if let customBuildPath = customBuildPath {
@@ -115,11 +143,18 @@ struct LicencesGenerator: ParsableCommand {
             return []
         }
 
-        return packageModel.pins.map { pin in
-            Dependency(
-                name: pin.identity,
-                url: pin.location,
-                version: pin.state.version ?? pin.state.revision
+        return packageModel.pins.compactMap { pin in
+            guard let identity = pin.identity ?? pin.package,
+                  let location = pin.location ?? pin.repositoryURL else {
+                return nil
+            }
+
+            let version = pin.state.version ?? pin.state.revision
+
+            return Dependency(
+                name: identity,
+                url: location,
+                version: version
             )
         }
     }

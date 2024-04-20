@@ -10,16 +10,16 @@ Rest of the information about the dependencies is extracted from the `Package.re
 
 The `LicencesGenerator` is a command-line tool designed to generate a list of licenses for dependencies added via Swift Package Manager by specifying the path to an Xcode project file. The tool automatically locates the `Package.resolved` file based on the provided project file path and generates a JSON file containing the licenses information.
 
-Here’s how to run the generator from the command line:
+Here’s how to run the generator from the command line from a folder with an Xcode project or Swift Package manager project.
 
 ```
-swift run SwiftPMLicensesGenerator <PathToXcodeProj>
+swift run SwiftPMLicensesGenerator
 ```
 
 #### Parameters
-- `<PathToXcodeProj>`: The path to the `.xcodeproj` file. This is used to derive the location of the `Package.resolved` file.
-- `<PathToJsonOutputFile>`: (Optional) The path where the output JSON file containing the licenses should be written. Defaults to the current directory with the filename `licenses.json`.
-- `--custom-build-path <PathToCustomBuildPath>`: (Optional) Specify a custom build directory path if not using the default DerivedData path. If provided, this path is used to locate the SourcePackages/checkouts directory.
+- `<ProjectPath>`: (Optional) Path to the root directory with either an Xcode project or a Swift Package Manager project. Defaults to current directory.
+- `--output-json-file`: (Optional) Path to where the output JSON file should be written to. Defaults to the current directory with 'licenses.json'.
+- `--custom-build-path`: (Optional) Specify a custom build directory path if not using the default DerivedData path. If provided, this path is used to locate the SourcePackages/checkouts directory.
 
 ### Output
 
@@ -39,16 +39,16 @@ The output JSON uses the following format:
 
 ## Example usage
 
-Assuming your project is located at `ExampleProject.xcodeproj` and you prefer to save the output in the current directory:
+Assuming your Xcode project is located in current folder and you prefer to save the output in the current directory:
 
 ```
-swift run SwiftPMLicensesGenerator ExampleProject.xcodeproj
+swift run SwiftPMLicensesGenerator
 ```
 
 If you need to specify a custom build directory and a specific location for the output file:
 
 ```
-swift run SwiftPMLicensesGenerator /path/to/ExampleProject.xcodeproj --custom-build-path /path/to/custom/build --output-json-file /path/to/output/licenses.json
+swift run SwiftPMLicensesGenerator --custom-build-path /path/to/custom/build --output-json-file /path/to/output/licenses.json
 ```
 
 ## Note
