@@ -1,14 +1,12 @@
 # SwiftPMLicensesGenerator
 
-A Swift Package to extract dependecies and licenses defined by SwiftPM. 
-License is read from {Derived Data}/{App Folder}/SourcePackages/checkout. This is the path where Xcode checks out SPM dependencies. A license is only returned if the dependency has added a license file at the root of it's repo.
-Rest of the information about the dependencies is extracted from the `Package.resolved` file. It can be found at following paths:
+A Swift Package used for extracting licenses from third party dependencies from an Xcode project or Swift Package Manager project. 
+A license is only returned if the dependency has added a license file at the root of it's repo.
+Rest of the information about the dependencies is extracted from the `Package.resolved` file.
 
 ## Usage Instructions
 
-### Running the Licences Generator
-
-The `LicencesGenerator` is a command-line tool designed to generate a list of licenses for dependencies added via Swift Package Manager by specifying the path to an Xcode project file. The tool automatically locates the `Package.resolved` file based on the provided project file path and generates a JSON file containing the licenses information.
+The `LicencesGenerator` is a command-line tool designed to generate a list of licenses for dependencies added via Swift Package Manager by specifying the path to an Xcode project file. The tool automatically locates the `Package.resolved` file based on the root path of the Xcode project or Swift package manager project, and generates a JSON file containing the licenses information.
 
 Here’s how to run the generator from the command line from a folder with an Xcode project or Swift Package manager project.
 
