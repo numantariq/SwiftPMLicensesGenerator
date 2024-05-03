@@ -1,70 +1,116 @@
 import ArgumentParser
-import ShellOut
 import Foundation
 
 struct LicencesGenerator: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "generate",
-        abstract:
-"""
-Build tool to generate a list of licenses for
-dependecies added via SwiftPM
-"""
+        abstract: "Build tool to generate a list of licenses for dependencies added via SwiftPM"
     )
 
     @Argument(
-        help: "Path to derived data. $BUILD_DIR from Xcode run script",
-        transform: ({ return URL(fileURLWithPath: $0)})
+        help: "Path to the root directory of an Xcode project or Swift Package Manager project.",
+        transform: { URL(fileURLWithPath: $0) }
     )
-    var buildDir: URL
+    var projectPath: URL = URL(fileURLWithPath: "./")
 
-    @Argument(
-        help: "Path to Package.resolved",
-        transform: ({ return URL(fileURLWithPath: $0)})
+    @Option(
+        help: "Path to where the output JSON file should be written to. Defaults to the current directory with 'licenses.json'.",
+        transform: { URL(fileURLWithPath: $0) }
     )
-    var resolvedPackage: URL
+    var outputJsonFile: URL = URL(fileURLWithPath: "./licenses.json")
 
-    @Argument(
-        help: "Path to where the output JSON file should be written to",
-        transform: ({ return URL(fileURLWithPath: $0)})
+    @Option(
+        help: "Optional path to $BUILD_DIR. If not provided, uses the default path for DerivedData.",
+        transform: { URL(fileURLWithPath: $0) }
     )
-    var outputFile: URL
-
-    private var fileManager: FileManager {
-        return FileManager.default
-    }
-
-    private var derivedDataURL: URL {
-        // Go from: {DerivedData}/{AppFolder}/Build/.....
-        // To: {DerivedData}/{AppFolder}
-        let fallbackPath = buildDir
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-
-        let pathComponents = buildDir.pathComponents
-        if let indexOfAppFolder = pathComponents.firstIndex(of: "Build") {
-            let pathComponentsToAppFolder = pathComponents.prefix(indexOfAppFolder).map { $0 }
-            return NSURL.fileURL(withPathComponents: pathComponentsToAppFolder) ?? fallbackPath
-        }
-
-        return fallbackPath
-    }
-
-    private var reposDirURL: URL {
-        // Go from: {DerivedData}/{AppFolder}
-        // To: {DerivedData}/{AppFolder}/SourcePackages/checkouts
-        return derivedDataURL
-            .appendingPathComponent("SourcePackages")
-            .appendingPathComponent("checkouts")
-    }
+    var customBuildPath: URL?
 
     mutating func run() throws {
+        var projectName: String
+        var packageResolvedPath: URL
+
+        if let xcodeprojPath = findXcodeprojPath(projectPath) {
+            projectName = xcodeprojPath.deletingPathExtension().lastPathComponent
+            packageResolvedPath = xcodeprojPath
+                .appendingPathComponent("project.xcworkspace")
+                .appendingPathComponent("xcshareddata")
+                .appendingPathComponent("swiftpm")
+                .appendingPathComponent("Package.resolved")
+        } else if let packageResolvedURL = findPackageResolvedPath(projectPath) {
+            projectName = projectPath.lastPathComponent
+            packageResolvedPath = packageResolvedURL
+        } else {
+            throw ValidationError("Unable to locate an Xcode project or Package.resolved file in the provided path.")
+        }
+
+        let reposDirURL = try findCheckoutDir(projectName)
         let licensesInfo = try loadLicensesFromRepos(reposDirURL)
 
-        var depenedencies = try loadDependencies(from: resolvedPackage)
-        depenedencies.updateWith(licensesInfo)
+        var dependencies = try loadDependencies(from: packageResolvedPath)
+        dependencies.updateWith(licensesInfo)
 
-        try depenedencies.writeAsJSON(toFile: outputFile)
+        try dependencies.writeAsJSON(toFile: outputJsonFile)
+
+        print("Licenses were successfully generated and saved to: \(outputJsonFile.path)")
+    }
+
+    private var fileManager: FileManager { FileManager.default }
+
+    private func findXcodeprojPath(_ projectPath: URL) -> URL? {
+        let enumerator = FileManager.default.enumerator(atPath: projectPath.path)
+        while let element = enumerator?.nextObject() as? String {
+            if element.hasSuffix(".xcodeproj") {
+                return projectPath.appendingPathComponent(element)
+            }
+        }
+        return nil
+    }
+
+    private func findPackageResolvedPath(_ projectPath: URL) -> URL? {
+        let packageResolvedURL = projectPath.appendingPathComponent("Package.resolved")
+        if FileManager.default.fileExists(atPath: packageResolvedURL.path) {
+            return packageResolvedURL
+        }
+        return nil
+    }
+
+    private func findCheckoutDir(_ projectName: String) throws -> URL {
+        if let customBuildPath = customBuildPath {
+            let checkoutsPath = customBuildPath.appendingPathComponent("SourcePackages/checkouts")
+            guard fileManager.fileExists(
+                atPath: checkoutsPath.path
+            ) else {
+                throw ValidationError("The 'checkouts' folder does not exist at custom build path: \(checkoutsPath.path)")
+            }
+            return checkoutsPath
+        }
+
+        let derivedDataPath = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library")
+            .appendingPathComponent("Developer")
+            .appendingPathComponent("Xcode")
+            .appendingPathComponent("DerivedData")
+
+        let directoryContents = try fileManager.contentsOfDirectory(atPath: derivedDataPath.path)
+
+        guard let projectDirectory = directoryContents
+            .first(
+                where: {
+                    $0.starts(with: projectName)
+                }
+            ) else {
+            throw ValidationError("No DerivedData directory found for project named \(projectName).")
+        }
+
+        let fullProjectPath = derivedDataPath
+            .appendingPathComponent(projectDirectory)
+            .appendingPathComponent("SourcePackages/checkouts")
+
+        guard fileManager.fileExists(atPath: fullProjectPath.path) else {
+            throw ValidationError("The 'checkouts' folder does not exist at derived path: \(fullProjectPath.path)")
+        }
+
+        return fullProjectPath
     }
 
     private func loadLicensesFromRepos(_ reposDirURL: URL) throws -> [String: String] {
@@ -92,13 +138,25 @@ dependecies added via SwiftPM
     }
 
     private func loadDependencies(from resolvedPackageURL: URL) throws -> [Dependency] {
-        let packageContent = try ResolvedPackageModel.loadResolvedPackageContent(resolvedPackageURL)
-        return packageContent?.object.pins.map({ pin in
-            let state = pin.state
-            return Dependency(name: pin.package,
-                              url: pin.repositoryURL,
-                              version: state.version ?? state.branch ?? state.revision)
-        }) ?? []
+        guard let packageModel = try ResolvedPackageModel.loadResolvedPackageContent(resolvedPackageURL) else {
+            print("Failed to load or decode package content from \(resolvedPackageURL)")
+            return []
+        }
+
+        return packageModel.pins.compactMap { pin in
+            guard let identity = pin.identity ?? pin.package,
+                  let location = pin.location ?? pin.repositoryURL else {
+                return nil
+            }
+
+            let version = pin.state.version ?? pin.state.revision
+
+            return Dependency(
+                name: identity,
+                url: location,
+                version: version
+            )
+        }
     }
 
     private func isValidLicenseFile(url: URL) -> Bool {
@@ -123,7 +181,7 @@ dependecies added via SwiftPM
                 fileName.contains(named) &&
                 fileURL.isFileURL &&
                 isValidLicenseFile(url: fileURL)
-                )
+            )
         }
     }
 }

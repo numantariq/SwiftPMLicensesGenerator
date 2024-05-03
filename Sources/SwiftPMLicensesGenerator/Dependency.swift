@@ -1,13 +1,13 @@
 //
 //  Dependency.swift
-//  
+//
 //
 //  Created by Nouman Tariq on 23/10/2021.
 //
 
 import Foundation
 
-struct  Dependency: Codable {
+struct Dependency: Codable {
     var name: String
     var url: String
     var version: String?
@@ -33,7 +33,7 @@ struct  Dependency: Codable {
         if components.count > 1 {
             return components[1]
         }
-        
+
         return ""
     }
 
