@@ -6,16 +6,14 @@ import PackageDescription
 let package = Package(
     name: "SwiftPMLicensesGenerator",
     products: [
-        .executable(name: "SwiftPMLicensesGenerator", targets: ["SwiftPMLicensesGenerator"])
+        .executable(name: "SwiftPMLicensesGenerator", targets: ["SwiftPMLicensesGenerator"]),
     ],
     dependencies: [
         .package(
-            url: "https://github.com/apple/swift-argument-parser", from: "0.3.0"
-        )
+            url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.0.0")
+        ),
     ],
     targets: [
-        // Targets are the basic building blocks of a package. A target can define a module or a test suite.
-        // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .executableTarget(
             name: "SwiftPMLicensesGenerator",
             dependencies: [
@@ -24,6 +22,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiftPMLicensesGeneratorTests",
-            dependencies: ["SwiftPMLicensesGenerator"]),
+            dependencies: ["SwiftPMLicensesGenerator"]
+        ),
     ]
 )
